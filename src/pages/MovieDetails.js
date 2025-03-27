@@ -3,15 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { FaStar, FaCalendarAlt, FaClock, FaLanguage, FaTag, FaPlay } from 'react-icons/fa';
 
-// API key for TMDb
-const TMDB_API_KEY = '2d8af7b0c100ac8c6c49b5e307081513'; // TMDb API key
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-const POSTER_BASE_URL = 'https://image.tmdb.org/t/p/w500';
-const BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/original';
+import { TMDB_CONFIG, OMDB_CONFIG, validateAPIConfig, handleAPIError } from '../config/api';
 
-// API key for OMDb
-const OMDB_API_KEY = 'f9d54f3e'; // OMDb API key
-const OMDB_BASE_URL = 'https://www.omdbapi.com';
+const { API_KEY, BASE_URL, POSTER_URL, BACKDROP_URL, POSTER_BASE_URL, BACKDROP_BASE_URL } = TMDB_CONFIG;
+const { API_KEY: OMDB_KEY, BASE_URL: OMDB_URL } = OMDB_CONFIG;
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -27,11 +22,20 @@ const MovieDetails = () => {
       try {
         setLoading(true);
         
+        // Validate API configuration
+        validateAPIConfig();
+
         // Fetch movie details from TMDb
         const tmdbResponse = await axios.get(
-          `${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&language=en-US&append_to_response=credits`
-        );
+          `${BASE_URL}/movie/${id}?api_key=${API_KEY}&language=en-US&append_to_response=credits`
+        ).catch(error => {
+          throw new Error(handleAPIError(error));
+        });
         
+        if (!tmdbResponse.data) {
+          throw new Error('Invalid movie details response format');
+        }
+
         setMovie(tmdbResponse.data);
         
         // Add to continue watching
@@ -39,8 +43,11 @@ const MovieDetails = () => {
         
         // Fetch additional data from OMDb using the movie title
         const omdbResponse = await axios.get(
-          `${OMDB_BASE_URL}/?apikey=${OMDB_API_KEY}&t=${encodeURIComponent(tmdbResponse.data.title)}&y=${tmdbResponse.data.release_date?.split('-')[0] || ''}`
-        );
+          `${OMDB_URL}/?apikey=${OMDB_KEY}&t=${encodeURIComponent(tmdbResponse.data.title)}&y=${tmdbResponse.data.release_date?.split('-')[0] || ''}`
+        ).catch(error => {
+          console.warn('OMDb API error:', error);
+          return { data: { Response: 'False' } };
+        });
         
         if (omdbResponse.data.Response === 'True') {
           setOmdbData(omdbResponse.data);
@@ -48,17 +55,23 @@ const MovieDetails = () => {
         
         // Fetch videos (trailers, teasers, etc.)
         const videosResponse = await axios.get(
-          `${TMDB_BASE_URL}/movie/${id}/videos?api_key=${TMDB_API_KEY}&language=en-US`
-        );
+          `${BASE_URL}/movie/${id}/videos?api_key=${API_KEY}&language=en-US`
+        ).catch(error => {
+          console.warn('Videos API error:', error);
+          return { data: { results: [] } };
+        });
         
-        setVideos(videosResponse.data.results);
+        setVideos(videosResponse.data.results || []);
         
         // Fetch similar movies
         const similarResponse = await axios.get(
-          `${TMDB_BASE_URL}/movie/${id}/similar?api_key=${TMDB_API_KEY}&language=en-US&page=1`
-        );
+          `${BASE_URL}/movie/${id}/similar?api_key=${API_KEY}&language=en-US&page=1`
+        ).catch(error => {
+          console.warn('Similar movies API error:', error);
+          return { data: { results: [] } };
+        });
         
-        setSimilarMovies(similarResponse.data.results.slice(0, 6));
+        setSimilarMovies((similarResponse.data.results || []).slice(0, 6));
         setLoading(false);
       } catch (err) {
         console.error('Error fetching movie details:', err);

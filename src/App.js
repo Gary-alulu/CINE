@@ -24,7 +24,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen transition-colors duration-200">
+    <div className="min-h-screen flex flex-col transition-colors duration-200">
       <Navbar />
       <button
         onClick={toggleDarkMode}
@@ -33,14 +33,14 @@ function App() {
       >
         {darkMode ? <FaSun className="text-xl" /> : <FaMoon className="text-xl" />}
       </button>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 flex-grow">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/movie/:id" element={<MovieDetails />} />
           <Route path="/search" element={<SearchResults />} />
         </Routes>
       </main>
-      <footer className="bg-gray-100 dark:bg-gray-800 py-6 mt-12">
+      <footer className="bg-gray-100 dark:bg-gray-800 py-6 mt-auto">
         <div className="container mx-auto px-4 text-center">
           <p className="text-gray-600 dark:text-gray-300">
             &copy; {new Date().getFullYear()} Movie Suggestion App. Powered by TMDb and OMDb.

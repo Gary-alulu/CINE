@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FaStar, FaCalendarAlt, FaArrowRight, FaPlayCircle, FaTimesCircle } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
+import ImageSlider from '../components/ImageSlider';
 
-// API key for TMDb
-const TMDB_API_KEY = '2d8af7b0c100ac8c6c49b5e307081513'; // TMDb API key
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-const POSTER_BASE_URL = 'https://image.tmdb.org/t/p/w500';
+import { TMDB_CONFIG, validateAPIConfig, handleAPIError } from '../config/api';
+
+const { API_KEY, BASE_URL, POSTER_URL, POSTER_BASE_URL } = TMDB_CONFIG;
 
 const Home = () => {
   const [trendingMovies, setTrendingMovies] = useState([]);
@@ -46,25 +46,53 @@ const Home = () => {
     const fetchMovies = async () => {
       try {
         setLoading(true);
+        setError(null); // Reset error state before fetching
+
+        // Validate API configuration
+        validateAPIConfig();
         
         // Fetch trending movies
         const trendingResponse = await axios.get(
-          `${TMDB_BASE_URL}/trending/movie/week?api_key=${TMDB_API_KEY}&language=en-US`
-        );
+          `${BASE_URL}/trending/movie/week?api_key=${API_KEY}&language=en-US`
+        ).catch(error => {
+          throw new Error(handleAPIError(error));
+        });
+        
+        if (!trendingResponse.data?.results) {
+          throw new Error('Invalid trending movies response format');
+        }
         
         // Fetch popular movies
         const popularResponse = await axios.get(
-          `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
-        );
+          `${BASE_URL}/movie/popular?api_key=${API_KEY}&language=en-US&page=1`
+        ).catch(error => {
+          throw new Error(handleAPIError(error));
+        });
+        
+        if (!popularResponse.data?.results) {
+          throw new Error('Invalid popular movies response format');
+        }
         
         // Fetch movies by genre (excluding 'all')
         const genrePromises = genres
           .filter(genre => genre.id !== 'all')
           .map(genre => 
-            axios.get(`${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genre.id}&sort_by=popularity.desc&page=1`)
+            axios.get(`${BASE_URL}/discover/movie?api_key=${API_KEY}&with_genres=${genre.id}&sort_by=popularity.desc&page=1`)
+              .catch(error => {
+                throw new Error(handleAPIError(error));
+              })
           );
         
-        const genreResponses = await Promise.all(genrePromises);
+        const genreResponses = await Promise.all(genrePromises).catch(error => {
+          throw new Error('Failed to fetch genre movies: ' + error.message);
+        });
+        
+        // Validate genre responses
+        genreResponses.forEach((response, index) => {
+          if (!response.data?.results) {
+            throw new Error(`Invalid response format for ${genres[index].name} movies`);
+          }
+        });
         
         // Create an object with genre id as key and movies as value
         const genreMoviesData = {};
@@ -78,8 +106,12 @@ const Home = () => {
         setLoading(false);
       } catch (err) {
         console.error('Error fetching movies:', err);
-        setError('Failed to fetch movies. Please try again later.');
+        setError(err.message || 'Failed to fetch movies. Please try again later.');
         setLoading(false);
+        // Initialize empty states to prevent undefined errors
+        setTrendingMovies([]);
+        setPopularMovies([]);
+        setGenreMovies({});
       }
     };
 
@@ -166,18 +198,18 @@ const Home = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <p className="text-red-500 mb-4">{error}</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="btn-primary"
+      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+        <span className="block sm:inline">{error}</span>
+        <button
+          onClick={() => window.location.reload()}
+          className="absolute top-0 bottom-0 right-0 px-4 py-3"
         >
           Try Again
         </button>
@@ -187,6 +219,10 @@ const Home = () => {
 
   return (
     <div className="space-y-12 animate-slide-up">
+      {/* Featured Movies Slider */}
+      <section>
+        {trendingMovies.length > 0 && <ImageSlider movies={trendingMovies} />}
+      </section>
       {/* Continue Watching Section (only shown if there are movies to continue) */}
       {continueWatching.length > 0 && (
         <section>
